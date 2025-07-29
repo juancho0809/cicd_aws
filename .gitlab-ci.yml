@@ -1,0 +1,66 @@
+
+variables:
+  IMAGE_REG: "ghcr.io"
+  IMAGE_REPO: "benc-uk/python-demoapp"
+  IMAGE_TAG: "v1.0.0"
+
+stages:
+  - lint
+  - build
+  - test
+  - deploy
+
+lint:
+  stage: lint
+  image: python:3.10
+  before_script:
+    - echo "Setting up dependencies for lint"
+    - apt-get update && apt-get install -y make
+    - make venv  # Crea y configura el entorno virtual
+    - echo "Before-Script for lint Done"
+  script:
+    - echo "Running linter"
+    - make lint || (echo "Fixing formatting issues..." && make lint-fix && make lint)
+
+build:
+  stage: build
+  image: docker:24.0.7
+  services:
+    - name: docker:24.0.7-dind  # Habilita Docker-in-Docker
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375  # Conecta con Docker-in-Docker
+    DOCKER_TLS_CERTDIR: ""  # Desactiva certificados TLS para evitar errores
+  before_script:
+    - apk add --no-cache make git  # Instala Make y Git
+    - echo "Building Docker image using Makefile"
+  script:
+    - make IMAGE_REG="$IMAGE_REG" IMAGE_REPO="$IMAGE_REPO" IMAGE_TAG="$IMAGE_TAG" image
+
+      
+test:
+  stage: test
+  image: python:3.10
+  before_script:
+    - echo "Setting up dependencies for test"
+    - apt-get update && apt-get install -y make
+    - make venv  # Crea y configura el entorno virtual
+    - echo "Before-Script for test Done"
+  script:
+    - echo "Running tests"
+    - make test
+
+deploy:
+  stage: deploy
+  image: mcr.microsoft.com/azure-cli  
+  before_script:
+    - apt-get update && apt-get install -y make
+    - echo "instaladoooo MAKE"
+    - make deploy
+  script:
+    - echo "✅ Azure CLI disponible"
+    - az version
+  only:
+    - main
+    - cicd-python-demoapp
+    - tags
